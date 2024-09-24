@@ -10,7 +10,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sanitizeData = void 0;
-const scrape_1 = require("../scrape");
+const index_1 = require("../scrape/index");
 function isValidDateString(date) {
     const regex = /^[a-zA-Záéíóúâêîôûàèìòùäëïöüç]{3}\., \d{1,2} de [a-zA-Záéíóúâêîôûàèìòùäëïöüç]{3}\.$/i;
     const isValid = regex.test(date);
@@ -33,16 +33,17 @@ const months = {
 function sanitizeData() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const data = yield (0, scrape_1.scrapeData)();
-            for (let i = 0; i < data.length; i++) {
-                const dateString = data[i].date;
-                if (isValidDateString(dateString)) {
-                    const sanitizedDateString = dateString
-                        .replace(/^[a-zA-Záéíóúãõâêîôûàèìòùäëïöüç]+\.,/, "")
-                        .trim();
-                    data[i].date = parseDate(sanitizedDateString, data[i].time);
-                }
-            }
+            const data = yield (0, index_1.scrapeData)();
+            /* for (let i = 0; i < data.length; i++) {
+              const dateString = data[i].date;
+              if (isValidDateString(dateString)) {
+                const sanitizedDateString = dateString
+                  .replace(/^[a-zA-Záéíóúãõâêîôûàèìòùäëïöüç]+\.,/, "")
+                  .trim();
+        
+                data[i].date = parseDate(sanitizedDateString, data[i].time);
+              }
+            } */
             return data;
         }
         catch (error) {
@@ -72,3 +73,4 @@ function parseDate(date, time) {
     }
     throw new Error("Formato de mes invalido!");
 }
+//# sourceMappingURL=index.js.map

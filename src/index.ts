@@ -1,24 +1,88 @@
-const mongoose = require("mongoose");
-import { sanitizeData } from "../sanitizer";
-import { eventsModel } from "./model";
-// Conexão com o banco de dados MongoDB
-mongoose.connect(
-  "mongodb://localhost:27017/?directConnection=true&serverSelectionTimeoutMS=2000&appName=mongosh+2.1.1"
-);
+import "reflect-metadata";
+import { DataSource } from "typeorm";
+import { ApolloServer } from "@apollo/server";
+import { expressMiddleware } from "@apollo/server/express4";
+import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import express from "express";
+import http from "http";
+import cors from "cors";
+import bodyParser from "body-parser";
+import { scrapeMatchesData, scrapeConcertsData } from "./scrape/index";
+import { Match, Concert } from "./model";
+import { typeDefs } from "./schema";
+import { resolvers } from "./resolvers";
+import "./whatsappBot";
+import { sendMessage } from "./whatsappBot";
 
-// Função para salvar os dados raspados no banco de dados
+export const AppDataSource = new DataSource({
+  type: "postgres",
+  host: "localhost",
+  port: 5432,
+  username: "postgres",
+  password: "postgres",
+  database: "arena-mrv-db",
+  entities: [Match, Concert],
+  synchronize: true,
+  logging: false,
+});
+
+async function startApolloServer() {
+  const app = express();
+  const httpServer = http.createServer(app);
+
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
+  });
+
+  await server.start();
+
+  app.use(
+    "/graphql",
+    cors<cors.CorsRequest>(),
+    bodyParser.json(),
+    expressMiddleware(server)
+  );
+
+  await new Promise<void>((resolve) =>
+    httpServer.listen({ port: 4000 }, resolve)
+  );
+  console.log(`🚀 Server ready at http://localhost:4000/graphql`);
+}
+
 async function saveDataToDB() {
   try {
-    // Raspagem dos dados
-    const sanitizedEvents = await sanitizeData();
-    console.log(sanitizedEvents);
-    // Salvando os eventos no banco de dados
-    await eventsModel.insertMany(sanitizedEvents);
+    const matchRepository = AppDataSource.manager.getRepository(Match);
+    const matchesData = await scrapeMatchesData();
+    const concertsData = await scrapeConcertsData();
+
+    await matchRepository.clear();
+    const matches = matchRepository.create(matchesData);
+    await matchRepository.save(matches);
+
+    const concertRepository = AppDataSource.manager.getRepository(Concert);
+    await concertRepository.clear();
+    const concerts = concertRepository.create(concertsData);
+    console.log(concertsData);
+    await concertRepository.save(concerts);
+
     console.log("Dados salvos com sucesso no banco de dados.");
   } catch (error) {
     console.error("Erro ao salvar os dados no banco de dados:", error);
   }
 }
 
-// Chamada da função para salvar os dados no banco de dados
-saveDataToDB();
+async function main() {
+  try {
+    await AppDataSource.initialize();
+    console.log("Conectado ao PostgreSQL");
+    await startApolloServer();
+    await saveDataToDB();
+    await sendMessage();
+  } catch (error) {
+    console.error("Erro no processo principal:", error);
+  }
+}
+
+main();

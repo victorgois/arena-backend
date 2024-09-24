@@ -1,56 +1,178 @@
-const puppeteer = require("puppeteer");
+import axios from "axios";
+import * as cheerio from "cheerio";
+import dayjs from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+import { setTimeout } from "timers/promises";
 
-export async function scrapeData() {
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
+function parseDate(date: string | Date): Date | boolean {
+  dayjs.extend(customParseFormat);
+  const currentYear = new Date().getFullYear();
 
-  // URL da página que você deseja raspar
-  const url =
-    "https://www.google.com/search?sca_esv=cfa97c458ab2bfe3&sxsrf=ACQVn0-REaQ748yWAJ77-JZQnb9ZWA4vUg:1710180992612&q=arena+mrv+pr%C3%B3ximos+eventos&stick=H4sIAAAAAAAAAOPgEOLVT9c3NEzLMUivMk3KU0LlaqlmJ1vp5-QnJ5Zk5ufBGValBcn5uZl56QqpZal5JcWLWKUTi1LzEhVyi8oUCooOb67IzM0vhkjmF-9gZQQAM0mYJmgAAAA&sa=X&ved=2ahUKEwjfw8PU6OyEAxXPrZUCHf3fCuEQMXoECFoQDA&biw=1280&bih=654&dpr=2";
-
-  await page.goto(url);
-
-  await page.waitForSelector("a[data-entityname]");
-
-  interface EventItem {
-    title: string;
-    date: string;
-    time: string;
-    url: string;
+  if (date instanceof Date) {
+    return date;
   }
 
-  const results = await page.evaluate(() => {
-    const eventCards = document.querySelectorAll("a[data-entityname]");
-    const eventList: EventItem[] = [];
+  const [datePart, timePart] = date.split(" às ");
+  const [day, month] = datePart.split("/");
 
-    eventCards.forEach((card) => {
-      const titleElement = card.querySelector(".bVj5Zb") as HTMLElement | null;
-      const title = titleElement?.innerText || "";
+  if (!timePart || timePart.toLocaleLowerCase() === "a definir") {
+    return false;
+  }
+  return dayjs(
+    `${day}-${month}-${currentYear} ${timePart}`,
+    "DD-MM-YYYY HH:mm"
+  ).toDate();
+}
 
-      const dateElement = card.querySelector(
-        ".t3gkGd div:first-child"
-      ) as HTMLElement | null;
-      const date = dateElement?.innerText || "";
+function compareDateWithToday(date: string | Date): boolean {
+  const parsedDate = parseDate(date);
+  if (!parsedDate) throw new Error("Data inválida");
 
-      const timeElement = card.querySelector(
-        ".t3gkGd div:last-child"
-      ) as HTMLElement | null;
-      const time = timeElement?.innerText || "";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Resetar as horas para comparar apenas as datas
 
-      const url = card.getAttribute("href") || "";
+  if (parsedDate < today) {
+    return false;
+  } else {
+    return true;
+  }
+}
 
-      eventList.push({
-        title,
-        date,
-        time,
-        url,
-      });
+export async function scrapeMatchesData() {
+  const url = "https://atletico.com.br/futebol/agenda/";
+  const html = await axios.get(url);
+
+  try {
+    const $ = cheerio.load(html.data);
+    const matches = [];
+
+    $(".partida").each((index, element) => {
+      const match: any = {};
+
+      match.timeConfirmed = parseDate(
+        $(element).find(".partida-data span").first().text().trim()
+      )
+        ? true
+        : false;
+
+      match.date = parseDate(
+        $(element).find(".partida-data span").first().text().trim()
+      );
+
+      if (match.date === false) {
+        // If parseDate returns false, set a default date or skip this match
+        return;
+      }
+      const venueMatch = $(element)
+        .find(".partida-data")
+        .text()
+        .match(/Arena MRV/);
+
+      match.venue = venueMatch ? venueMatch[0] : "";
+
+      match.championship = $(element).find(".partida-campeonato").text().trim();
+
+      match.homeTeam = {
+        name: $(element).find(".mandante abbr").attr("title"),
+        abbreviation: $(element).find(".mandante abbr").text(),
+        logoUrl: $(element).find(".mandante img").attr("src"),
+      };
+
+      match.awayTeam = {
+        name: $(element).find(".visitante abbr").attr("title"),
+        abbreviation: $(element).find(".visitante abbr").text(),
+        logoUrl: $(element).find(".visitante img").attr("src"),
+      };
+
+      const scores = $(element).find(".versus span");
+      if (scores.length === 2) {
+        match.homeScore = $(scores[0]).text();
+        match.awayScore = $(scores[1]).text();
+      }
+
+      match.status = $(element).hasClass("partida-finalizada")
+        ? "Finalizada"
+        : "Agendada";
+
+      const linkElement = $(element).find(".partida-botoes a");
+      if (linkElement.length > 0) {
+        match.detailsLink = linkElement.attr("href");
+      }
+
+      if (
+        match.status !== "Finalizada" &&
+        compareDateWithToday(match.date) &&
+        match.venue === "Arena MRV"
+      ) {
+        matches.push(match);
+      }
+      console.log(match);
     });
-    console.log("Dados raspados do google com maestria...");
-    return eventList;
-  });
 
-  await browser.close();
+    return matches;
+  } catch (error) {
+    console.error(error);
+  }
+}
 
-  return results;
+export async function scrapeConcertsData() {
+  const url =
+    "https://www.eventim.com.br/city/belo-horizonte-1139/venue/arena-mrv-90744/";
+  try {
+    await setTimeout(1000); // Wait 1 second before each request
+    const html = await axios.get(url, { timeout: 30000 });
+    try {
+      const $ = cheerio.load(html.data);
+      const concerts = [];
+
+      $(".listing-item-wrapper-inside-card").each((index, element) => {
+        const concert: any = {};
+
+        concert.name = $(element).find("h2.event-listing-city").text().trim();
+        concert.status = $(element)
+          .find("[data-qa='list-event-state']")
+          .text()
+          .trim();
+
+        const dateElement = $(element).find("[data-qa='event-date']");
+        const day = dateElement
+          .find("[data-qa='event-date-day']")
+          .text()
+          .trim();
+        const monthYear = dateElement
+          .find("[data-qa='event-date-month-year']")
+          .text()
+          .trim();
+        const time = dateElement
+          .find("[data-qa='event-date-time']")
+          .text()
+          .trim();
+        concert.date = `${day} ${monthYear} ${time}`;
+
+        concert.venue = "Arena MRV";
+
+        const jsonLd = JSON.parse(
+          $(element).find("script[type='application/ld+json']").html()
+        );
+        concert.time = jsonLd.startDate
+          ? new Date(jsonLd.startDate).toLocaleTimeString("pt-BR")
+          : "";
+
+        concert.detailsLink = $(element)
+          .find("a[data-qa='continue-button']")
+          .attr("href");
+
+        concerts.push(concert);
+        console.log(concert);
+      });
+
+      return concerts;
+    } catch (error) {
+      console.error("Error parsing data:", error);
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    throw error;
+  }
 }
