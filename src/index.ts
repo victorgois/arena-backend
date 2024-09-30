@@ -11,7 +11,8 @@ import { scrapeMatchesData, scrapeConcertsData } from "./scrape/index";
 import { Match, Concert } from "./model";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
-import { scheduleWhatsAppMessage } from "./whatsappBot";
+import { scheduleWhatsAppMessage, handleIncomingMessage } from "./whatsappBot";
+import twilio from "twilio";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -41,6 +42,23 @@ async function startApolloServer() {
     cors<cors.CorsRequest>(),
     bodyParser.json(),
     expressMiddleware(server)
+  );
+
+  app.post(
+    "/webhook",
+    express.urlencoded({ extended: false }),
+    async (req, res) => {
+      const incomingMsg = req.body.Body;
+      const fromNumber = req.body.From.replace("whatsapp:", "");
+
+      const responseMsg = await handleIncomingMessage(incomingMsg, fromNumber);
+
+      const twiml = new twilio.twiml.MessagingResponse();
+      twiml.message(responseMsg);
+
+      res.writeHead(200, { "Content-Type": "text/xml" });
+      res.end(twiml.toString());
+    }
   );
 
   await new Promise<void>((resolve) =>

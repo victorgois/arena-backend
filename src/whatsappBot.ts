@@ -1,16 +1,32 @@
-import dotenv from "dotenv";
 import twilio from "twilio";
 import { resolvers } from "./resolvers";
-
-dotenv.config();
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
 
+export async function handleIncomingMessage(message: string, from: string) {
+  if (message.toLowerCase().includes("receber atualizações")) {
+    // Adicionar o usuário à lista de inscritos
+    await addSubscriber(from);
+    return "Você foi inscrito com sucesso para receber atualizações sobre os jogos!";
+  }
+  // Adicione mais lógica de resposta conforme necessário
+}
+
+async function addSubscriber(phoneNumber: string) {
+  // Implemente a lógica para adicionar o número de telefone ao seu banco de dados
+  console.log(`Novo inscrito: ${phoneNumber}`);
+}
+
+async function getSubscribedUsers() {
+  // Implemente a lógica para obter os usuários inscritos
+  return []; // Retorna uma lista de usuários inscritos
+}
+
 export async function scheduleWhatsAppMessage() {
-  const userPhoneNumber = process.env.USER_PHONE_NUMBER;
+  const subscribedUsers = await getSubscribedUsers();
   const matches = await resolvers.Query.matches();
 
   if (matches.length > 0) {
@@ -50,7 +66,9 @@ export async function scheduleWhatsAppMessage() {
       })}_. Se liga hein!`;
     }
 
-    await sendWhatsAppMessage(userPhoneNumber, message);
+    for (const user of subscribedUsers) {
+      await sendWhatsAppMessage(user.phoneNumber, message);
+    }
   } else {
     console.log("Nenhum match encontrado.");
   }
@@ -59,7 +77,7 @@ export async function scheduleWhatsAppMessage() {
 async function sendWhatsAppMessage(to: string, body: string) {
   try {
     await client.messages.create({
-      from: "whatsapp:+14155238886",
+      from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`,
       to: `whatsapp:${to}`,
       body: body,
     });
