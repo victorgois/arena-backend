@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Backend para o site do Arena MRV",
   "scripts": {
-    "build": "tsc",
+    "build": "npm i && tsc",
     "start": "node dist/index.js",
     "dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/index.ts",
     "postinstall": "tsc",
