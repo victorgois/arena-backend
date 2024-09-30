@@ -11,8 +11,7 @@ import { scrapeMatchesData, scrapeConcertsData } from "./scrape/index";
 import { Match, Concert } from "./model";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
-import "./whatsappBot";
-import { sendMessage } from "./whatsappBot";
+import { scheduleWhatsAppMessage } from "./whatsappBot";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -55,7 +54,7 @@ async function saveDataToDB() {
   try {
     const matchRepository = AppDataSource.manager.getRepository(Match);
     const matchesData = await scrapeMatchesData();
-    const concertsData = await scrapeConcertsData();
+    // const concertsData = await scrapeConcertsData();
 
     await matchRepository.clear();
     const matches = matchRepository.create(matchesData);
@@ -63,9 +62,9 @@ async function saveDataToDB() {
 
     const concertRepository = AppDataSource.manager.getRepository(Concert);
     await concertRepository.clear();
-    const concerts = concertRepository.create(concertsData);
-    console.log(concertsData);
-    await concertRepository.save(concerts);
+    // const concerts = concertRepository.create(concertsData);
+    // console.log(concertsData);
+    // await concertRepository.save(concerts);
 
     console.log("Dados salvos com sucesso no banco de dados.");
   } catch (error) {
@@ -79,7 +78,7 @@ async function main() {
     console.log("Conectado ao PostgreSQL");
     await startApolloServer();
     await saveDataToDB();
-    await sendMessage();
+    await scheduleWhatsAppMessage();
   } catch (error) {
     console.error("Erro no processo principal:", error);
   }

@@ -106,7 +106,6 @@ export async function scrapeMatchesData() {
       ) {
         matches.push(match);
       }
-      console.log(match);
     });
 
     return matches;
