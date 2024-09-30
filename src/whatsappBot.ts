@@ -10,7 +10,7 @@ const client = twilio(
 );
 
 export async function scheduleWhatsAppMessage() {
-  const userPhoneNumber = "+553199322052";
+  const userPhoneNumber = process.env.USER_PHONE_NUMBER;
   const matches = await resolvers.Query.matches();
 
   if (matches.length > 0) {
