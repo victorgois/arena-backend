@@ -15,11 +15,10 @@ import { scheduleWhatsAppMessage } from "./whatsappBot";
 
 export const AppDataSource = new DataSource({
   type: "postgres",
-  host: "localhost",
-  port: 5432,
-  username: "postgres",
-  password: "postgres",
-  database: "arena-mrv-db",
+  url: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false,
+  },
   entities: [Match, Concert],
   synchronize: true,
   logging: false,
