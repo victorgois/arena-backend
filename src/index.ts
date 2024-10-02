@@ -13,6 +13,10 @@ import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
 import { scheduleWhatsAppMessage, handleIncomingMessage } from "./whatsappBot";
 import twilio from "twilio";
+import dotenv from "dotenv";
+import { startStandaloneServer } from "@apollo/server/standalone";
+
+dotenv.config();
 
 export const AppDataSource = new DataSource({
   type: "postgres",
@@ -39,10 +43,7 @@ async function startApolloServer() {
 
   app.use(
     "/graphql",
-    cors<cors.CorsRequest>({
-      origin: "*",
-      credentials: true,
-    }),
+    cors<cors.CorsRequest>(),
     bodyParser.json(),
     expressMiddleware(server)
   );
@@ -64,14 +65,11 @@ async function startApolloServer() {
     }
   );
 
-  await new Promise<void>((resolve) =>
-    httpServer.listen({ port: process.env.GRAPHQL_PORT || 4000 }, resolve)
-  );
-  console.log(
-    `🚀 Server ready at http://localhost:${
-      process.env.GRAPHQL_PORT || 4000
-    }/graphql`
-  );
+  const { url } = await startStandaloneServer(server, {
+    listen: { port: Number(process.env.GRAPHQL_PORT || 4000) },
+  });
+
+  console.log(`🚀 Server ready at ${url}`);
 }
 
 async function saveDataToDB() {
@@ -99,7 +97,6 @@ async function saveDataToDB() {
 async function main() {
   try {
     await AppDataSource.initialize();
-    console.log("Conectado ao PostgreSQL");
     await startApolloServer();
     await saveDataToDB();
     await scheduleWhatsAppMessage();
