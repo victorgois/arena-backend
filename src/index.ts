@@ -66,7 +66,7 @@ async function startApolloServer() {
   );
 
   const { url } = await startStandaloneServer(server, {
-    listen: { port: Number(process.env.GRAPHQL_PORT || 4000) },
+    listen: { port: Number(process.env.PORT || 10000) },
   });
 
   console.log(`🚀 Server ready at ${url}`);
