@@ -3,7 +3,6 @@ import { DataSource } from "typeorm";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import express from "express";
-import http from "http";
 import cors from "cors";
 import bodyParser from "body-parser";
 import { scrapeMatchesData, scrapeConcertsData } from "./scrape/index";
@@ -11,9 +10,7 @@ import { Match, Concert } from "./model";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
 import { scheduleWhatsAppMessage, handleIncomingMessage } from "./whatsappBot";
-import twilio from "twilio";
 import dotenv from "dotenv";
-import { startStandaloneServer } from "@apollo/server/standalone";
 
 dotenv.config();
 
@@ -42,12 +39,16 @@ async function startApolloServer() {
 
     app.use(
       "/graphql",
-      cors<cors.CorsRequest>(),
+      cors({
+        origin: "https://eventos-arena-mrv.onrender.com",
+        credentials: true,
+        allowedHeaders: ["content-type"],
+      }),
       bodyParser.json(),
       expressMiddleware(server)
     );
 
-    const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+    const port = process.env.PORT || 4000;
     app.listen(port, () => {
       console.log(`Server is running on http://localhost:${port}/graphql`);
     });
