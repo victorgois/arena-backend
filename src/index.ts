@@ -2,7 +2,6 @@ import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
-import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import express from "express";
 import http from "http";
 import cors from "cors";
@@ -31,43 +30,30 @@ export const AppDataSource = new DataSource({
 
 async function startApolloServer() {
   const app = express();
-  const httpServer = http.createServer(app);
 
   const server = new ApolloServer({
     typeDefs,
     resolvers,
-    plugins: [ApolloServerPluginDrainHttpServer({ httpServer })],
   });
 
-  app.use(
-    "/graphql",
-    cors<cors.CorsRequest>(),
-    bodyParser.json(),
-    expressMiddleware(server)
-  );
+  // Wrap this in an async function
+  async function startServer() {
+    await server.start();
 
-  app.post(
-    "/webhook",
-    express.urlencoded({ extended: false }),
-    async (req, res) => {
-      const incomingMsg = req.body.Body;
-      const fromNumber = req.body.From.replace("whatsapp:", "");
+    app.use(
+      "/graphql",
+      cors<cors.CorsRequest>(),
+      bodyParser.json(),
+      expressMiddleware(server)
+    );
 
-      const responseMsg = await handleIncomingMessage(incomingMsg, fromNumber);
+    const port = process.env.PORT ? parseInt(process.env.PORT) : 4000;
+    app.listen(port, () => {
+      console.log(`Server is running on http://localhost:${port}/graphql`);
+    });
+  }
 
-      const twiml = new twilio.twiml.MessagingResponse();
-      twiml.message(responseMsg);
-
-      res.writeHead(200, { "Content-Type": "text/xml" });
-      res.end(twiml.toString());
-    }
-  );
-
-  const { url } = await startStandaloneServer(server, {
-    listen: { port: Number(process.env.PORT || 10000) },
-  });
-
-  console.log(`🚀 Server ready at ${url}`);
+  startServer();
 }
 
 async function saveDataToDB() {
@@ -95,6 +81,7 @@ async function saveDataToDB() {
 async function main() {
   try {
     await AppDataSource.initialize();
+    console.log("Conectado ao PostgreSQL");
     await startApolloServer();
     await saveDataToDB();
     await scheduleWhatsAppMessage();
