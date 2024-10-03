@@ -36,11 +36,18 @@ async function startApolloServer() {
   // Wrap this in an async function
   async function startServer() {
     await server.start();
+    const urlPrefix =
+      process.env.NODE_ENV === "development"
+        ? "http://localhost"
+        : "https://eventos-arena-mrv.onrender.com";
 
     app.use(
       "/graphql",
       cors({
-        origin: "https://eventos-arena-mrv.onrender.com",
+        origin: [
+          "http://localhost:3000",
+          "https://eventos-arena-mrv.onrender.com",
+        ],
         credentials: true,
         allowedHeaders: ["content-type"],
       }),
@@ -49,8 +56,9 @@ async function startApolloServer() {
     );
 
     const port = process.env.PORT || 4000;
+
     app.listen(port, () => {
-      console.log(`Server is running on http://localhost:${port}/graphql`);
+      console.log(`Server is running on ${urlPrefix}:${port}/graphql`);
     });
   }
 
@@ -60,18 +68,13 @@ async function startApolloServer() {
 async function saveDataToDB() {
   try {
     const matchRepository = AppDataSource.manager.getRepository(Match);
-    const matchesData = await scrapeMatchesData();
-    // const concertsData = await scrapeConcertsData();
-
     await matchRepository.clear();
-    const matches = matchRepository.create(matchesData);
-    await matchRepository.save(matches);
 
-    const concertRepository = AppDataSource.manager.getRepository(Concert);
-    await concertRepository.clear();
-    // const concerts = concertRepository.create(concertsData);
-    // console.log(concertsData);
-    // await concertRepository.save(concerts);
+    const matchesData = await scrapeMatchesData();
+    const validMatches = matchesData.filter((match) => match.date !== null);
+
+    const matches = matchRepository.create(validMatches);
+    await matchRepository.save(matches);
 
     console.log("Dados salvos com sucesso no banco de dados.");
   } catch (error) {
